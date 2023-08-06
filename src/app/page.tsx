@@ -3,7 +3,10 @@
 import React, { Component } from 'react';
 import {PublicKey ,Connection, clusterApiUrl,Transaction,TransactionInstruction,SystemProgram, TransactionInstructionCtorFields} from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID,createAssociatedTokenAccountInstruction } from '@solana/spl-token';
-// import CORE from '@/components/CORE';
+import CORE from '@/components/CORE';
+import * as bs58 from 'bs58';
+
+
 
 const SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID: PublicKey = new PublicKey(
   'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
@@ -18,25 +21,16 @@ let str = 'DISCOSEA_CORE';
 let seeds = Buffer.from(str, 'utf-8');  // or 'ascii', 'base64', etc. depending on your needs
 
 
-
 //programId
-let programId = new PublicKey('4NgNUe4fZ67Ewxn8HEa3egrj4EVxNzsdBerQd16DCDyk');
-
+let programId = new PublicKey('4D8MVDaVsjreobtFyieujZHwfo6E8rMnVpKS1skzvCb7');
+let copper_ore_mint = new PublicKey("9tzJM4VjujoHCWKWNtGrsR69iTTuyiasacKoFYYKxm5a");
+let pda_copper_ore_account = new PublicKey('7qfrwfu1jMhdu59RryCERQhKV3VWDAczcFbaG4VrRJqY')
 
 
 let provider : any;
 
-let copper_ore_mint = new PublicKey("C64D6aTtmsKnjeqmyRZTKzWsdutQvraTmQbZujLLwGpp");
-let user_pda_copper_ore_account = new PublicKey("C64D6aTtmsKnjeqmyRZTKzWsdutQvraTmQbZujLLwGpp");
 
 let copper_bar_mint = new PublicKey("C64D6aTtmsKnjeqmyRZTKzWsdutQvraTmQbZujLLwGpp");
-
-
-
-
-
-
-
 
 
 class Character {
@@ -70,23 +64,63 @@ class Character {
   }
 }
 
+class TokenAccount {
+  mint: Uint8Array = new Uint8Array([0]);
+  owner: Uint8Array = new Uint8Array([0]);
+  tokenBalance: bigint = BigInt(0);  delegate?: Uint8Array | null; // Optional, so can be undefined or null
+  state: AccountState = AccountState.Uninitialized; // This would need to be another type or enum you define
+  isNative?: bigint | null; // Optional, indicating a u64 or none
+  delegatedAmount?: bigint;
+  closeAuthority?: Uint8Array | null; 
+
+  static deserialize(data: Uint8Array): TokenAccount {
+      const account = new TokenAccount();
+
+      account.mint = data.slice(0, 32);
+      account.owner = data.slice(32, 64);
+      account.tokenBalance = new DataView(data.buffer, 64, 8).getBigUint64(0, true);
+      // Assuming delegate is the next 32 bytes, but you might adjust based on COption's actual representation
+      account.delegate = data.slice(72, 104).every(byte => byte === 0) ? null : data.slice(72, 104);
+      // Assuming state is a byte, adjust as needed
+      account.state = data[104];
+      // Assuming isNative is the next 8 bytes as u64, but adjust based on COption's representation
+      account.isNative = new DataView(data.buffer, 105, 8).getBigUint64(0, true) || null;
+      account.delegatedAmount = new DataView(data.buffer, 113, 8).getBigUint64(0, true);
+      // Assuming closeAuthority is the next 32 bytes, adjust based on COption's representation
+      account.closeAuthority = data.slice(121, 153).every(byte => byte === 0) ? null : data.slice(121, 153);
+
+      return account;
+  }
+}
 
 
+enum AccountState {
+  // Populate with the possible states, e.g., 
+  Initialized, 
+  Uninitialized,
+  // ... other states ...
+}
 
 
 
 
 class page extends Component {
-
-
   state={
     loading:true,
+    feePayer :null,
+    hasCore:false,
     character: new Character(),
     user_pda:null,
-    feePayer :null,
     missingAccountInstructions:[],
-    copper_account:null,
-    hasCore:false,
+
+    //resource accounts
+    copper_ore_account:null,
+    copper_bar_account:null,
+
+    //bank items
+    copper_ore_amount:0,
+    copper_bar_amount:0,
+
   }
 
 
@@ -188,8 +222,18 @@ class page extends Component {
 
 
         } else {
-            console.log("Account exists.");
+            console.log("SPL Account exists.");
             console.log(accountInfo)
+            const tokenAccount = TokenAccount.deserialize(accountInfo.data);
+            // Access the properties of the token account
+            console.log(bs58.encode(tokenAccount.mint));
+            console.log(bs58.encode(tokenAccount.owner));
+            console.log(tokenAccount.tokenBalance);
+
+            this.setState({copper_ore_account:ata,copper_ore_ammount:tokenAccount.tokenBalance})
+
+
+
         }
 
 
@@ -197,20 +241,59 @@ class page extends Component {
   }
 
 
-  metaMine()
+  async metaMine()
   {
-
 
     console.log("Checking User Mining Account")
 
-    console.log(this.state.copper_account)
-
-    if(this.state.copper_account==null)
+    if(this.state.copper_ore_account==null)
     {
       console.log("User does not have a copper account")
 
     }else{
-      console.log(this.state.copper_account)
+      console.log(this.state.copper_ore_account)
+      let [pdaPublicKey, _nonce] = await PublicKey.findProgramAddressSync([seeds], programId);
+
+
+      var iX = 2;
+      var iXBuffer = Buffer.alloc(1);
+      iXBuffer.writeUint8(iX);
+
+      var nonceBuffer = Buffer.alloc(1);
+      nonceBuffer.writeUint8(_nonce);
+    
+      var dataBuffer = Buffer.concat([iXBuffer,seeds,nonceBuffer]);
+
+
+    
+      // Create the instruction to send data
+      let instructionData:TransactionInstructionCtorFields = {
+        keys: [
+          // @ts-ignore
+          { pubkey: this.state.feePayer, isSigner: true, isWritable: false },
+          { pubkey: pdaPublicKey, isSigner: false, isWritable: false },
+
+          //resource mint and accounts
+          { pubkey: copper_ore_mint, isSigner: false, isWritable: true },
+          { pubkey: this.state.copper_ore_account, isSigner: false, isWritable: true },
+          { pubkey: pda_copper_ore_account, isSigner: false, isWritable: true },
+
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+          { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+          // @ts-ignore
+          { pubkey: this.state.user_pda, isSigner: false, isWritable: false }],
+        programId:programId,
+        data: dataBuffer,
+      };
+      let sendDataIx = new TransactionInstruction(instructionData);
+
+
+      this.sendGameTransaction([sendDataIx])
+
+
+
+
+
     }
 
   }
@@ -417,14 +500,23 @@ async sendGameTransaction(InstructionArray:TransactionInstruction[])
           if (accountInfo === null) {
               console.log("Account does not exist.");
 
+              this.setState({loading:false})
+
               
          
   
           } else {
               console.log("Account exists.");
-
-
               console.log(accountInfo)
+
+
+
+
+              this.getOrCreateUserAccountInstructions(copper_ore_mint,feePayer)
+
+
+
+
               try {
                 const char = Character.deserialize(accountInfo.data);
                 console.log(char);
@@ -468,14 +560,16 @@ async sendGameTransaction(InstructionArray:TransactionInstruction[])
         <div>
   
                
-{/*   
+
                           <CORE 
                           character={this.state.character}  
                           hasCore={this.state.hasCore} 
+                          // @ts-ignore
                           create_user_pda_account={this.create_user_pda_account.bind(this)}
                           metaMine = {this.metaMine.bind(this)}
-                          loading={this.state.loading}
-                          /> */}
+                          loading={this.state.loading}  
+                          copper_ore_ammount={this.state.copper_bar_amount}                        
+                          /> 
                         
   
           <button style={{position:"fixed",right:20,width:200,height:60,top:20}} id="WalletButton">Connect Wallet</button>

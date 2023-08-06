@@ -5,6 +5,7 @@ import React, { Component } from 'react';
 type COREProps = {
     loading: boolean;
     hasCore: boolean;
+    copper_ore_ammount:number;
     create_pda_account: () => void;
     character: {
       hpLvl: number;
@@ -35,7 +36,7 @@ class CORE extends Component<COREProps> {
             {
                 return (
            
-                    <button onClick={this.props.create_pda_account} style={{marginTop:20}}>Create Account</button>
+                    <button onClick={this.props.create_user_pda_account} style={{marginTop:20}}>Create Account</button>
                 );
     
             }else
@@ -59,7 +60,7 @@ class CORE extends Component<COREProps> {
                     <div style={{color:"white"}}>Metaplex Minting:  {this.props.character.miningLvl}</div>
                     <div style={{color:"white"}}>SolBlaze Staking:  {this.props.character.stakingLvl}</div>
                     <div style={{color:"white"}}>---bank---</div>
-                    <div style={{color:"white"}}>copper ore:</div>
+                    <div style={{color:"white"}}>copper ore: {this.props.copper_ore_ammount}</div>
                     <div style={{color:"white"}}>copper bar:</div>
                 </div>
                     <button onClick={this.props.metaMine} style={{marginTop:20}}>Mine</button>
