@@ -560,7 +560,7 @@ async sendGameTransaction(InstructionArray:TransactionInstruction[])
         <div>
   
                
-
+                          
                           <CORE 
                           character={this.state.character}  
                           hasCore={this.state.hasCore} 

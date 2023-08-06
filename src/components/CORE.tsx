@@ -6,7 +6,7 @@ type COREProps = {
     loading: boolean;
     hasCore: boolean;
     copper_ore_ammount:number;
-    create_pda_account: () => void;
+    create_user_pda_account:()=>void;
     character: {
       hpLvl: number;
       mpLvl: number;
@@ -64,8 +64,8 @@ class CORE extends Component<COREProps> {
                     <div style={{color:"white"}}>copper bar:</div>
                 </div>
                     <button onClick={this.props.metaMine} style={{marginTop:20}}>Mine</button>
-                    <button style={{marginTop:20}}>Smith</button>
-                    <button style={{marginTop:20}}>Duel</button>
+                    <button onClick={()=>{alert("Coming Soon")}} style={{marginTop:20}}>Smith</button>
+                    <button onClick={()=>{alert("Coming Soon")}}  style={{marginTop:20}}>Duel</button>
 
                   </div>
 
